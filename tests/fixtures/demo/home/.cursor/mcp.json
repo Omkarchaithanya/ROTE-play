@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "node",
+      "args": ["github-mcp-server"],
+      "env": {
+        "GITHUB_TOKEN": "example"
+      }
+    },
+    "docs-readonly": {
+      "command": "node",
+      "args": ["docs-mcp", "--read-only"]
+    }
+  }
+}

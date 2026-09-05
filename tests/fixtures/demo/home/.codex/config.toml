@@ -1,0 +1,3 @@
+[mcp_servers.filesystem]
+command = "demo-filesystem-mcp"
+args = ["--read-only"]
