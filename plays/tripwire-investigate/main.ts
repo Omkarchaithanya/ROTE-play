@@ -26,10 +26,6 @@
  *   - name: trace_file
  *     required: true
  *     description: "Path to the JSON execution trace of the agent"
- *   - name: format
- *     default: "json"
- *     valid_values: [human, json]
- *     description: "Output format"
  * steps:
  *   investigate:
  *     type: process.exec

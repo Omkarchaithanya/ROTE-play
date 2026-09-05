@@ -14,6 +14,12 @@ You can execute the Play with a minimal valid invocation:
 rote play run plays/tripwire-investigate/main.ts trace_file=/path/to/trace.json
 ```
 
+To output raw JSON instead of the human-formatted report, use the native Rote flag:
+
+```bash
+rote play run plays/tripwire-investigate/main.ts trace_file=/path/to/trace.json --output=json
+```
+
 ## Output
 
 The Play outputs a deterministically calculated security policy tier:

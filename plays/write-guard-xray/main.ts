@@ -1,85 +1,96 @@
-/** @rote-frontmatter
-name: write-guard-xray
-version: 0.1.0
-description: Inspect a Rote Play source/URI and report whether declared write capabilities match represented step behavior.
-metadata:
-  status: draft
-  execution_model: steps_with_presentation
-  flow_type: inspect_analyze_verdict
-  read_only_default: true
-  writes: none
-  safety: This Play never executes the inspected Play and never modifies local files, credentials, or configuration.
-parameters:
-- name: play_uri
-  param_type: string
-  required: true
-  description: Local path, owner/name, or https Play URI to inspect.
-  example: ./main.ts
-- name: format
-  param_type: string
-  required: false
-  default: human
-  description: Output representation.
-  example: human
-  valid_values: [human, json]
-steps:
-  metadata_probe:
-    type: process.exec
-    timeout_ms: 30000
-    argv: [python3, plays/write-guard-xray/write_guard_xray.py, --format, json, metadata_probe, $play_uri]
-  capability_probe:
-    type: process.exec
-    timeout_ms: 15000
-    depends_on: [metadata_probe]
-    argv:
-    - python3
-    - plays/write-guard-xray/write_guard_xray.py
-    - --format
-    - json
-    - capability_probe
-    - --metadata-json
-    - '@metadata_probe{$.stdout.text}'
-  step_tool_probe:
-    type: process.exec
-    timeout_ms: 15000
-    depends_on: [capability_probe]
-    argv:
-    - python3
-    - plays/write-guard-xray/write_guard_xray.py
-    - --format
-    - json
-    - step_tool_probe
-    - --capability-json
-    - '@capability_probe{$.stdout.text}'
-  write_analysis:
-    type: process.exec
-    timeout_ms: 15000
-    depends_on: [step_tool_probe]
-    argv:
-    - python3
-    - plays/write-guard-xray/write_guard_xray.py
-    - --format
-    - json
-    - write_analysis
-    - --steps-json
-    - '@step_tool_probe{$.stdout.text}'
-  verdict:
-    type: process.exec
-    timeout_ms: 15000
-    depends_on: [write_analysis]
-    argv:
-    - python3
-    - plays/write-guard-xray/write_guard_xray.py
-    - --format
-    - json
-    - verdict
-    - $play_uri
-    - --analysis-json
-    - '@write_analysis{$.stdout.text}'
-representations:
-  human: complete - target, declaration, observed capabilities, findings, classification, verdict.
-  json: canonical - stable findings, metadata, step observations, safety, provenance.
-*/
+/**
+ * @rote-frontmatter
+ * ---
+ * name: write-guard-xray
+ * version: 0.1.0
+ * description: Inspect a Rote Play source/URI and report whether declared write capabilities match represented step behavior.
+ * metadata:
+ *   requires_sessions: false
+ *   rote_version: 1.0
+ *   status: draft
+ *   execution_model: steps_with_presentation
+ *   flow_type: sequential
+ *   read_only_default: true
+ *   writes: none
+ *   safety: This Play never executes the inspected Play and never modifies local files, credentials, or configuration.
+ * parameters:
+ * - name: play_uri
+ *   param_type: string
+ *   required: true
+ *   description: Local path, owner/name, or https Play URI to inspect.
+ *   example: ./main.ts
+ * - name: format
+ *   param_type: string
+ *   required: false
+ *   default: human
+ *   description: Output representation.
+ *   example: human
+ *   valid_values: [human, json]
+ * steps:
+ *   metadata_probe:
+ *     type: process.exec
+ *     timeout_ms: 30000
+ *     argv:
+ *     - python3
+ *     - "@resource{write_guard_xray.py}"
+ *     - --format
+ *     - json
+ *     - metadata_probe
+ *     - $play_uri
+ *   capability_probe:
+ *     type: process.exec
+ *     timeout_ms: 15000
+ *     depends_on: [metadata_probe]
+ *     argv:
+ *     - python3
+ *     - "@resource{write_guard_xray.py}"
+ *     - --format
+ *     - json
+ *     - capability_probe
+ *     - --metadata-json
+ *     - '@metadata_probe{$.stdout.text}'
+ *   step_tool_probe:
+ *     type: process.exec
+ *     timeout_ms: 15000
+ *     depends_on: [capability_probe]
+ *     argv:
+ *     - python3
+ *     - "@resource{write_guard_xray.py}"
+ *     - --format
+ *     - json
+ *     - step_tool_probe
+ *     - --capability-json
+ *     - '@capability_probe{$.stdout.text}'
+ *   write_analysis:
+ *     type: process.exec
+ *     timeout_ms: 15000
+ *     depends_on: [step_tool_probe]
+ *     argv:
+ *     - python3
+ *     - "@resource{write_guard_xray.py}"
+ *     - --format
+ *     - json
+ *     - write_analysis
+ *     - --steps-json
+ *     - '@step_tool_probe{$.stdout.text}'
+ *   verdict:
+ *     type: process.exec
+ *     timeout_ms: 15000
+ *     depends_on: [write_analysis]
+ *     argv:
+ *     - python3
+ *     - "@resource{write_guard_xray.py}"
+ *     - --format
+ *     - json
+ *     - verdict
+ *     - $play_uri
+ *     - --analysis-json
+ *     - '@write_analysis{$.stdout.text}'
+ * representations:
+ *   human: complete - target, declaration, observed capabilities, findings, classification, verdict.
+ *   json: canonical - stable findings, metadata, step observations, safety, provenance.
+ * ---
+ */
 
 const { FlowOutput, loadPresentationContext, stepName } = await import("__ROTE_PRESENTATION_SDK__");
 

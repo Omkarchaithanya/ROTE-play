@@ -6,7 +6,6 @@ command = "python3"
 required = true
 why = "Runs each TRIPWIRE probe and join step."
 timeout_ms = 30000
-degradation = "Fatal for Rote execution because all process.exec steps use it."
 
 [[tools]]
 id = "git"
@@ -14,7 +13,6 @@ command = "git"
 required = false
 why = "Used by git_leak_probe to inspect recent local repository path metadata."
 timeout_ms = 8000
-degradation = "git_leak_probe reports UNKNOWN."
 
 [[tools]]
 id = "gh"
@@ -22,7 +20,6 @@ command = "gh"
 required = false
 why = "Used by token_ttl for GitHub CLI authentication metadata when available."
 timeout_ms = 8000
-degradation = "token_ttl reports gh: NOT INSTALLED and expiry UNKNOWN."
 
 [[tools]]
 id = "netstat"
@@ -30,7 +27,6 @@ command = "netstat"
 required = false
 why = "Used on Windows to collect listening-port metadata without elevation."
 timeout_ms = 8000
-degradation = "listen_surface reports UNKNOWN if listener inspection is unavailable."
 
 [[tools]]
 id = "ss"
@@ -38,7 +34,6 @@ command = "ss"
 required = false
 why = "Used on Linux to collect listening-port metadata without elevation."
 timeout_ms = 8000
-degradation = "listen_surface reports UNKNOWN if listener inspection is unavailable."
 
 [[tools]]
 id = "lsof"
@@ -46,4 +41,3 @@ command = "lsof"
 required = false
 why = "Fallback listener inspection on Unix-like systems."
 timeout_ms = 8000
-degradation = "listen_surface reports UNKNOWN if listener inspection is unavailable."
