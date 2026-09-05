@@ -47,8 +47,8 @@ class TestBIEAdversarial(unittest.TestCase):
             BehaviorEvent("e1", "agent-01", "aws", {}, "EXTERNAL_WRITE")
         ]
         result = investigator.run_investigation(events)
-        self.assertIn("H1", [h["id"] for h in result["hypotheses"] if h["conf"] >= 0.4])
-        self.assertEqual(result["risk"], "LOW")
+        self.assertEqual(result["risk"], "HIGH")
+        self.assertEqual(result["policy_decision"], "BLOCKED")
 
     def test_case_b_benign_behavioral_change(self):
         # A legitimate workflow introduces a new read-only tool
@@ -129,6 +129,57 @@ class TestBIEAdversarial(unittest.TestCase):
                 ProbeCategory.BASELINE_COMPARISON,
                 ProbeCategory.ADAPTER_METADATA_INSPECTION
             ])
+
+    def test_case_k_positive_chain(self):
+        investigator = Investigator("agent-01", self.ref_baseline, self.current_state)
+        events = [
+            BehaviorEvent("e1", "agent-01", "read_credentials", {}, "CREDENTIAL_READ"),
+            BehaviorEvent("e2", "agent-01", "fetch_api", {}, "NETWORK"),
+            BehaviorEvent("e3", "agent-01", "write_db", {}, "EXTERNAL_WRITE")
+        ]
+        result = investigator.run_investigation(events)
+        self.assertIn("Credential → Network → External Write escalation detected", result["anomalies"])
+        self.assertEqual(result["policy_decision"], "BLOCKED")
+
+    def test_case_l_positive_chain_with_intermediate_read(self):
+        investigator = Investigator("agent-01", self.ref_baseline, self.current_state)
+        events = [
+            BehaviorEvent("e1", "agent-01", "read_credentials", {}, "CREDENTIAL_READ"),
+            BehaviorEvent("e2", "agent-01", "read_db", {}, "READ_ONLY"),
+            BehaviorEvent("e3", "agent-01", "fetch_api", {}, "NETWORK"),
+            BehaviorEvent("e4", "agent-01", "write_db", {}, "EXTERNAL_WRITE")
+        ]
+        result = investigator.run_investigation(events)
+        self.assertIn("Credential → Network → External Write escalation detected", result["anomalies"])
+        self.assertEqual(result["policy_decision"], "BLOCKED")
+
+    def test_case_m_negative_chain(self):
+        investigator = Investigator("agent-01", self.ref_baseline, self.current_state)
+        events = [
+            BehaviorEvent("e1", "agent-01", "read_credentials", {}, "CREDENTIAL_READ"),
+            BehaviorEvent("e2", "agent-01", "read_db", {}, "READ_ONLY")
+        ]
+        result = investigator.run_investigation(events)
+        self.assertNotIn("Credential → Network → External Write escalation detected", result["anomalies"])
+
+    def test_case_n_network_and_write_without_credential(self):
+        investigator = Investigator("agent-01", self.ref_baseline, self.current_state)
+        events = [
+            BehaviorEvent("e1", "agent-01", "fetch_api", {}, "NETWORK"),
+            BehaviorEvent("e2", "agent-01", "write_db", {}, "EXTERNAL_WRITE")
+        ]
+        result = investigator.run_investigation(events)
+        self.assertNotIn("Credential → Network → External Write escalation detected", result["anomalies"])
+        self.assertEqual(result["policy_decision"], "BLOCKED")
+
+    def test_case_o_unknown(self):
+        investigator = Investigator("agent-01", self.ref_baseline, self.current_state)
+        events = [
+            BehaviorEvent("e1", "agent-01", "custom_action", {}, "UNKNOWN")
+        ]
+        result = investigator.run_investigation(events)
+        self.assertNotIn("Credential → Network → External Write escalation detected", result["anomalies"])
+        self.assertEqual(result["policy_decision"], "REVIEW")
 
 if __name__ == '__main__':
     unittest.main()

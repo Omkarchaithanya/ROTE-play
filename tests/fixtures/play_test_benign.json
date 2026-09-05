@@ -1,0 +1,26 @@
+[
+  {
+    "event_id": "EV-1",
+    "agent": "claude",
+    "tool": "read_file",
+    "args": {"path": "data.csv"}
+  },
+  {
+    "event_id": "EV-2",
+    "agent": "claude",
+    "tool": "read_database",
+    "args": {"query": "SELECT * FROM users"}
+  },
+  {
+    "event_id": "EV-3",
+    "agent": "claude",
+    "tool": "analyze",
+    "args": {"data": "..."}
+  },
+  {
+    "event_id": "EV-4",
+    "agent": "claude",
+    "tool": "generate_report",
+    "args": {"format": "pdf"}
+  }
+]

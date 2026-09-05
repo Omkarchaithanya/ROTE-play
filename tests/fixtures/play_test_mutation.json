@@ -1,0 +1,8 @@
+[
+  {
+    "event_id": "EV-1",
+    "agent": "claude",
+    "tool": "deploy_readiness_check",
+    "args": {}
+  }
+]

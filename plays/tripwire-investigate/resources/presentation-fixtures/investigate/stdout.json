@@ -1,0 +1,66 @@
+{
+  "target": "claude",
+  "finding": "Legitimate workflow expansion",
+  "risk": "LOW",
+  "confidence": 0.7,
+  "hypotheses": [
+    {
+      "id": "H1",
+      "desc": "Legitimate workflow expansion",
+      "conf": 0.7,
+      "evidence": [
+        "E-2"
+      ]
+    },
+    {
+      "id": "H3",
+      "desc": "Suspicious privilege misuse or injection",
+      "conf": 0.5,
+      "evidence": [
+        "E-1",
+        "E-2"
+      ]
+    },
+    {
+      "id": "H4",
+      "desc": "Tool mutation or adversarial naming",
+      "conf": 0.1,
+      "evidence": []
+    },
+    {
+      "id": "H2",
+      "desc": "Configuration or schema change",
+      "conf": 0.1,
+      "evidence": []
+    }
+  ],
+  "probes": [
+    {
+      "id": "P1",
+      "type": "SCHEMA_INSPECTION",
+      "target": "Target Schema"
+    },
+    {
+      "id": "P2",
+      "type": "BASELINE_COMPARISON",
+      "target": "Baseline"
+    },
+    {
+      "id": "P3",
+      "type": "ADAPTER_METADATA_INSPECTION",
+      "target": "Tool Semantics"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E-1",
+      "obs": "Schema unchanged"
+    },
+    {
+      "id": "E-2",
+      "obs": "New tools observed: ['read_file', 'read_database', 'analyze', 'generate_report']"
+    }
+  ],
+  "anomalies": [],
+  "policy_decision": "SAFE"
+}

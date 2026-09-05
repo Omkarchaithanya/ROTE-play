@@ -265,5 +265,10 @@ class TripwireTests(unittest.TestCase):
                 self.assertIn("github: old_hash -> new_hash", res["delta"]["schema_drifts"])
                 self.assertEqual(res["safe_to_run"]["decision"], "BLOCKED")
 
+    def test_blast_radius_unknown_when_static_probes_omitted(self):
+        # When no static findings are passed, blast radius should report UNKNOWN, not LOW
+        payload = tripwire.analyze_payloads([])
+        self.assertEqual(payload["blast_radius"]["level"], "UNKNOWN")
+
 if __name__ == "__main__":
     unittest.main()

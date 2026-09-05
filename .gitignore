@@ -5,3 +5,9 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Temporary and generated artifacts
+scratch/
+tests/fixtures/verification/
+.rote-flow-lint.json
+rote-guidance.md
