@@ -2,43 +2,51 @@
  * @rote-frontmatter
  * ---
  * name: tripwire-investigate
- * description: "Audit an AI-agent execution trace for authority drift, schema drift, behavioral anomalies, credential/network escalation, and security risk, then produce an evidence-backed deterministic policy outcome."
- * source: "https://github.com/Omkarchaithanya/ROTE-play"
+ * description: Audit an AI-agent execution trace for authority drift, schema drift, behavioral anomalies, credential/network escalation, and security risk, then produce an evidence-backed deterministic policy outcome.
+ * source: https://github.com/Omkarchaithanya/ROTE-play
  * metadata:
- *   version: "0.1.0"
- *   rote_version: "0.78.0"
- *   execution_model: "steps_with_presentation"
- *   flow_type: "sequential"
+ *   version: 0.1.0
+ *   rote_version: 0.78.0
+ *   execution_model: steps_with_presentation
+ *   flow_type: sequential
  *   requires_sessions: false
- *   status: "draft"
+ *   status: released
+ *   discoverability:
+ *     tags:
+ *     - security
+ *     - agent-operations
+ *     - mcp
+ *     - tripwire
+ *     - investigation
+ *     - effect-read-only
  *   read_only_default: true
  *   contract:
  *     atomic: true
  *     composable: false
  *     input:
- *       type: "file"
+ *       type: file
  *     output:
- *       format: "json"
- *       destination: "stdout"
+ *       format: json
+ *       destination: stdout
  * presentation_fixtures:
  *   investigate: resources/presentation-fixtures/investigate/fixture.yaml
  * parameters:
- *   - name: trace_file
- *     required: true
- *     description: "Path to the JSON execution trace of the agent"
+ * - name: trace_file
+ *   required: true
+ *   description: Absolute path to the JSON execution trace of the agent
  * steps:
  *   investigate:
  *     type: process.exec
  *     timeout_ms: 30000
  *     argv:
- *       - python3
- *       - "-X"
- *       - "bie=@resource{bie.py}"
- *       - "@resource{tripwire.py}"
- *       - "--format"
- *       - "json"
- *       - "investigate"
- *       - "$trace_file"
+ *     - python3
+ *     - -X
+ *     - bie=@resource{bie.py}
+ *     - '@resource{tripwire.py}'
+ *     - --format
+ *     - json
+ *     - investigate
+ *     - $trace_file
  * ---
  */
 

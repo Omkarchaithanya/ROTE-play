@@ -42,6 +42,8 @@ ACTION_MACHINE_MUTATION = "MACHINE_MUTATION"
 ACTION_LOCAL_STATE_WRITE = "LOCAL_STATE_WRITE"
 ACTION_CREDENTIAL_ACCESS = "CREDENTIAL_ACCESS"
 ACTION_UNKNOWN = "UNKNOWN"
+CODE_FILE_SUFFIXES = {".py", ".ts", ".js", ".go", ".rs", ".java", ".cpp", ".c", ".h"}
+IGNORED_SCAN_PARTS = {".git", "__pycache__"}
 
 @dataclass
 class Finding:
@@ -108,6 +110,12 @@ def credential_artifact_name(name: str) -> bool:
     lowered = name.lower()
     normalized = lowered.lstrip(".")
     return (lowered.startswith(".env") or normalized in {"auth.json", "credentials.json", "credential.json", "secrets.json", "secret.json"} or lowered.endswith((".pem", ".key", ".p12", ".pfx", ".token")))
+
+def ignored_scan_path(path: Path) -> bool:
+    return any(part in IGNORED_SCAN_PARTS for part in path.parts)
+
+def code_file(path: Path) -> bool:
+    return path.suffix.lower() in CODE_FILE_SUFFIXES
 
 def emit(probe: str, findings: list[Finding], warnings: list[str] | None = None, **extra: Any) -> int:
     payload = {"ok": True, "probe": probe, "warnings": warnings or [], "findings": [item.as_dict() for item in findings]}
@@ -204,6 +212,11 @@ def agent_identity(args: argparse.Namespace) -> int:
     probe = "agent_identity"
     if not want(args.scope, probe): return skipped(probe, args.scope)
     findings = []
+    if demo_active():
+        findings.append(Finding(probe, "os_user", "ok", "S0", "local OS identity", details={"user": "demo-user", "os": "fixture"}))
+        findings.append(Finding(probe, "git_identity", "ok", "S0", "git identity configured", details={"email": "PLACEHOLDER"}))
+        return emit(probe, findings)
+
     user = getpass.getuser()
     findings.append(Finding(probe, "os_user", "ok", "S0", "local OS identity", details={"user": user, "os": platform.system()}))
     
@@ -237,7 +250,10 @@ def network_surface(args: argparse.Namespace) -> int:
     probe = "network_surface"
     if not want(args.scope, probe): return skipped(probe, args.scope)
     findings = []
-    
+    if demo_active():
+        findings.append(Finding(probe, "endpoints", "ok", "S0", "No active external endpoints inferred", details={"endpoints": []}))
+        return emit(probe, findings)
+
     ok, text = run_cmd(["netstat", "-ano"], timeout=8)
     if not ok and not text:
         ok, text = run_cmd(["ss", "-tnp"], timeout=8)
@@ -277,10 +293,14 @@ def harness_inventory(args: argparse.Namespace) -> int:
     for label, commands, paths in specs:
         installed = False
         version = "NOT INSTALLED"
-        for command in commands:
-            installed, version = command_version(command)
-            if installed: break
         readable_paths = [safe_path(path) for path in paths if exists(path) and can_read(path)]
+        if demo_active():
+            installed = bool(readable_paths)
+            version = "fixture" if installed else "NOT INSTALLED"
+        else:
+            for command in commands:
+                installed, version = command_version(command)
+                if installed: break
         status = "ok" if installed or readable_paths else "missing"
         severity = "S1" if readable_paths and not installed else "S0"
         message = "harness detected" if status == "ok" else "harness not installed"
@@ -344,17 +364,19 @@ def canonicalize_tools(tools: list[dict]) -> str:
 def fetch_mcp_tools(command: str, args: list[str]) -> tuple[list[dict], str]:
     if demo_active(): return [], "sha256:demo"
     try:
-        proc = subprocess.Popen([command] + args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
-        proc.stdin.write(req + "\n")
-        proc.stdin.flush()
-        line = proc.stdout.readline()
-        proc.terminate()
+        proc = subprocess.Popen([command] + args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        stdout, _ = proc.communicate(req + "\n", timeout=3)
+        line = stdout.splitlines()[0] if stdout else ""
         if line:
             resp = json.loads(line)
             tools = resp.get("result", {}).get("tools", [])
             schema_str = canonicalize_tools(tools)
             return tools, "sha256:" + hashlib.sha256(schema_str.encode("utf-8")).hexdigest()[:16]
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(Exception):
+            proc.kill()
+            proc.communicate(timeout=1)
     except Exception: pass
     return [], "UNKNOWN"
 
@@ -415,6 +437,7 @@ def bounded_files() -> Iterable[Path]:
         try:
             for path in list(root.rglob("*"))[:500]:
                 if excluded_path(path): continue
+                if ignored_scan_path(path): continue
                 if path.is_file() and (path.name in names or credential_locus_name(path.name)): yield path
         except (OSError, PermissionError): yield root
 
@@ -436,7 +459,7 @@ def secret_loci(args: argparse.Namespace) -> int:
             content = path.read_text(errors='ignore')
             keys = find_keys(content)
             
-            is_code_file = path.suffix in [".py", ".ts", ".js", ".go", ".rs", ".java", ".cpp", ".c", ".h"]
+            is_code_file = code_file(path)
             
             if keys:
                 detail = {"type": "credential material", "presence": "PRESENT", "contents": "NEVER DISPLAYED", "exposed_keys": [k for k, _ in keys], "agent_usable": "UNKNOWN"}
@@ -479,6 +502,10 @@ def token_ttl(args: argparse.Namespace) -> int:
     probe = "token_ttl"
     if not want(args.scope, probe): return skipped(probe, args.scope)
     findings = []
+    if demo_active():
+        findings.append(Finding(probe, "GitHub CLI", "missing", "S0", "gh: NOT INSTALLED"))
+        return emit(probe, findings)
+
     gh = shutil.which("gh")
     if gh:
         ok, text = run_cmd([gh, "auth", "status"], timeout=8)
@@ -498,6 +525,10 @@ def listen_surface(args: argparse.Namespace) -> int:
     if not want(args.scope, probe): return skipped(probe, args.scope)
     findings = []
     warnings = []
+    if demo_active():
+        findings.append(Finding(probe, "local listeners", "ok", "S0", "listener metadata collected", details={"listener_count": 0, "agent_related_count": 0, "values": "redacted"}))
+        return emit(probe, findings, warnings)
+
     commands = [["netstat", "-ano"], ["ss", "-ltnp"], ["lsof", "-iTCP", "-sTCP:LISTEN", "-P", "-n"]]
     text = ""
     for cmd in commands:
@@ -520,6 +551,10 @@ def price_tape(args: argparse.Namespace) -> int:
     url = os.environ.get("TRIPWIRE_PRICE_URL", "https://www.modiqo.ai/pricing")
     findings = []
     warnings = []
+    if demo_active():
+        findings.append(Finding(probe, "pricing", "ok", "S0", "pricing source fixture", details={"source": "fixture", "http_status": 200}))
+        return emit(probe, findings, warnings)
+
     try:
         req = Request(url, headers={"User-Agent": "tripwire/0.1"})
         with urlopen(req, timeout=8) as response: status = getattr(response, "status", 0)
@@ -533,7 +568,18 @@ def git_leak_probe(args: argparse.Namespace) -> int:
     probe = "git_leak_probe"
     if not want(args.scope, probe): return skipped(probe, args.scope)
     findings = []
-    
+    if demo_active():
+        paths = sorted(
+            str(path.relative_to(workspace())).replace("\\", "/")
+            for path in workspace().rglob("*")
+            if path.is_file() and not ignored_scan_path(path) and (credential_artifact_name(path.name) or ".mcp" in path.name.lower())
+        )
+        if paths:
+            findings.append(Finding(probe, "recent git history", "ok", "S2", "credential-shaped paths found in fixture history", details={"paths": paths[:50], "truncated": len(paths) > 50}))
+        else:
+            findings.append(Finding(probe, "recent git history", "ok", "S0", "no credential-shaped paths found in fixture history"))
+        return emit(probe, findings)
+
     if not shutil.which("git"):
         findings.append(Finding(probe, "git_binary", "unknown", "UNKNOWN", "git history unavailable", confidence="LOW", evidence="shutil.which('git') failed"))
         return emit(probe, findings)
@@ -550,7 +596,10 @@ def git_leak_probe(args: argparse.Namespace) -> int:
         return emit(probe, findings)
         
     paths = sorted({line.strip() for line in text.splitlines() if line.strip()})
-    risky = [path for path in paths if credential_locus_name(Path(path).name) or ".mcp" in path.lower()]
+    risky = [
+        path for path in paths
+        if credential_artifact_name(Path(path).name) or ".mcp" in path.lower()
+    ]
     if risky: findings.append(Finding(probe, "recent git history", "ok", "S2", "credential-shaped paths found in recent commits", details={"paths": risky[:50], "truncated": len(risky) > 50}))
     else: findings.append(Finding(probe, "recent git history", "ok", "S0", "no credential-shaped paths found in recent commits"))
     return emit(probe, findings)
@@ -624,12 +673,12 @@ def analyze_payloads(payloads: list[dict[str, Any]], update_baseline: bool = Fal
         blast_score += 15
         blast_contributors.append("Machine mutation capability: +15")
         
-    fs_reachable = any(f.get("probe") == "filesystem_reachability" and f.get("status") == "ok" for f in all_findings)
+    fs_reachable = any(f.get("probe") == "filesystem_reachability" and f.get("status") == "ok" and f.get("severity") == "S2" for f in all_findings)
     if fs_reachable:
         blast_score += 12
         blast_contributors.append("Filesystem reachability (sensitive): +12")
-        
-    net_reachable = any(f.get("probe") == "network_surface" and f.get("status") == "ok" for f in all_findings)
+
+    net_reachable = any(f.get("probe") == "network_surface" and f.get("status") == "ok" and f.get("severity") != "S0" for f in all_findings)
     if net_reachable:
         blast_score += 10
         blast_contributors.append("Network reachability: +10")
@@ -760,6 +809,10 @@ def analyze_payloads(payloads: list[dict[str, Any]], update_baseline: bool = Fal
     if [f for f in all_findings if f.get("severity") == "S3"]:
         if safe == "SAFE": safe = "CONDITIONAL"
         reasons.append("S3 (Write Risk) findings detected")
+
+    if [f for f in all_findings if f.get("severity") == "S2"]:
+        if safe == "SAFE": safe = "CONDITIONAL"
+        reasons.append("S2 (Secret Risk) findings detected")
         
     if blast_score > 70:
         if safe == "SAFE": safe = "CONDITIONAL"
@@ -922,15 +975,24 @@ def verdict(args: argparse.Namespace) -> int:
     return 0
 
 def run_all(args: argparse.Namespace) -> int:
-    configure_demo(str(getattr(args, "demo", "false")).lower() == "true")
-    probe_funcs = [
-        agent_identity, harness_inventory, mcp_census, play_registry, secret_loci,
-        token_ttl, listen_surface, price_tape, git_leak_probe, filesystem_reachability, network_surface
-    ]
-    payloads = [run_probe_payload(func, args) for func in probe_funcs]
-    analyzed = analyze_payloads(payloads, str(getattr(args, "baseline", "false")).lower() == "true")
-    verdict_args = argparse.Namespace(scope=args.scope, apply=args.apply, format=args.format, analysis=json.dumps(analyzed))
-    return verdict(verdict_args)
+    demo = str(getattr(args, "demo", "false")).lower() == "true"
+    original_env = {key: os.environ.get(key) for key in ("TRIPWIRE_HOME", "TRIPWIRE_WORKSPACE", "TRIPWIRE_DEMO_ACTIVE")}
+    try:
+        configure_demo(demo)
+        probe_funcs = [
+            agent_identity, harness_inventory, mcp_census, play_registry, secret_loci,
+            token_ttl, listen_surface, price_tape, git_leak_probe, filesystem_reachability, network_surface
+        ]
+        payloads = [run_probe_payload(func, args) for func in probe_funcs]
+        analyzed = analyze_payloads(payloads, str(getattr(args, "baseline", "false")).lower() == "true")
+        verdict_args = argparse.Namespace(scope=args.scope, apply=args.apply, format=args.format, analysis=json.dumps(analyzed))
+        return verdict(verdict_args)
+    finally:
+        for key, value in original_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 def doctor(args: argparse.Namespace) -> int:
     configure_demo(str(getattr(args, "demo", "false")).lower() == "true")
@@ -1019,16 +1081,20 @@ def main(argv: list[str] | None = None) -> int:
     for name in ["agent_identity", "harness_inventory", "mcp_census", "play_registry", "secret_loci", "token_ttl", "listen_surface", "price_tape", "git_leak_probe", "filesystem_reachability", "network_surface", "doctor", "run_all"]:
         sub.add_parser(name)
     sub.add_parser("analyze").add_argument("payloads", nargs="*")
+    sub.add_parser("classify").add_argument("payloads", nargs="*")
+    sub.add_parser("verdict").add_argument("analysis")
     sub.add_parser("investigate").add_argument("target")
     args = parser.parse_args(argv)
-    
-    if args.cmd == "analyze": return analyze(args)
+
+    if args.cmd in ("analyze", "classify"): return analyze(args)
+    if args.cmd == "verdict": return verdict(args)
     if args.cmd == "run_all": return run_all(args)
     if args.cmd == "doctor": return doctor(args)
     if args.cmd == "investigate": return investigate(args)
-    
+
     # Run single probe
     funcs = {f.__name__: f for f in [agent_identity, harness_inventory, mcp_census, play_registry, secret_loci, token_ttl, listen_surface, price_tape, git_leak_probe, filesystem_reachability, network_surface]}
+    configure_demo(str(getattr(args, "demo", "false")).lower() == "true")
     return funcs[args.cmd](args)
 
 if __name__ == "__main__":

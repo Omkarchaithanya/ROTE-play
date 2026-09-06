@@ -11,13 +11,13 @@ The input is a JSON execution trace (`trace_file`) containing the sequence of to
 You can execute the Play with a minimal valid invocation:
 
 ```bash
-rote play run plays/tripwire-investigate/main.ts trace_file=/path/to/trace.json
+rote play run /mnt/c/Users/omkar/mobi/plays/tripwire-investigate/main.ts trace_file=/absolute/path/to/trace.json
 ```
 
 To output raw JSON instead of the human-formatted report, use the native Rote flag:
 
 ```bash
-rote play run plays/tripwire-investigate/main.ts trace_file=/path/to/trace.json --output=json
+rote play run /mnt/c/Users/omkar/mobi/plays/tripwire-investigate/main.ts trace_file=/absolute/path/to/trace.json --output=json
 ```
 
 ## Output
@@ -44,7 +44,7 @@ The Play calculates behavioral security threats across three levels:
 
 **Authority** measures the delta between the approved static MCP capabilities (the baseline) and the capabilities discovered currently on disk.
 
-When Authority is **UNKNOWN**, it means that there is no approved baseline available for comparison (i.e., static authority data is unavailable). If the trace is otherwise benign, the Play may still return SAFE, but it will explicitly indicate that the static authority/blast-radius assessment was unavailable.
+When Authority is **UNKNOWN**, it means that there is no approved baseline available for comparison (i.e., static authority data is unavailable). If the trace is otherwise benign but capability semantics are unavailable, the Play returns REVIEW rather than guessing.
 
 ## Schema / Schema Drift
 
@@ -79,11 +79,11 @@ The Behavioral Investigation Engine (BIE) processes the trace through a strict, 
 A legitimate read-only workflow.
 
 **Trace**: `read_file` -> `read_database` -> `analyze` -> `generate_report`
-**Expected Output**:
+**Expected Output without a semantic baseline**:
 ```
-Result: SAFE
-Behavioral Finding: No specific anomalies detected
-Policy: SAFE
+Result: REVIEW
+Behavioral Finding: Unknown capability semantics require review
+Policy: REVIEW
 ```
 
 ## Example 2 — Suspicious Chain

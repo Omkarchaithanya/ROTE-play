@@ -3,6 +3,7 @@ import subprocess
 import json
 import tempfile
 import os
+import shutil
 
 class TestJSONContract(unittest.TestCase):
     def setUp(self):
@@ -27,6 +28,9 @@ class TestJSONContract(unittest.TestCase):
         Verify that passing --output=json to Rote completely bypasses the
         human-readable text and outputs only raw JSON from FlowOutput.result()
         """
+        if shutil.which("rote") is None:
+            self.skipTest("rote CLI is not installed")
+
         result = subprocess.run(
             [
                 "rote", "play", "run",

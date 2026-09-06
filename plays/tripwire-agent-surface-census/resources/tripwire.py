@@ -142,7 +142,8 @@ def configure_demo(enabled: bool) -> None:
                 os.environ.pop(key, None)
         os.environ.pop("TRIPWIRE_DEMO_ACTIVE", None)
         return
-    root = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "demo"
+    packaged_root = Path(__file__).resolve().parent / "demo"
+    root = packaged_root if packaged_root.exists() else Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "demo"
     os.environ["TRIPWIRE_HOME"] = str(root / "home")
     os.environ["TRIPWIRE_WORKSPACE"] = str(root / "workspace")
     os.environ["TRIPWIRE_DEMO_ACTIVE"] = "1"

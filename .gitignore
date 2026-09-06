@@ -10,4 +10,6 @@ htmlcov/
 scratch/
 tests/fixtures/verification/
 .rote-flow-lint.json
+.rote-release.lock
+plays/.index/
 rote-guidance.md
