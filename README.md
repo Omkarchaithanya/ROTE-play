@@ -1,136 +1,46 @@
-# TRIPWIRE - AgentOps Control Layer
+# TRIPWIRE: AgentOps Control Layer
 
-TRIPWIRE answers one local question:
+An e2e framework for local agent authority verification, acting as a "git diff for agent authority" without modifying your machine or exposing secrets.
 
-> What can an agent on this machine currently reach, and did anyone authorize it?
+<p align="center">
+    <img src="docs/tripwire-logo.png" alt="TRIPWIRE Logo" />
+    <br/>
+    <a href="https://github.com/Omkarchaithanya/ROTE-play/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-MIT-blue.svg"/></a>
+    <img alt="Python" src="https://img.shields.io/badge/python-3.8%2B-blue.svg"/>
+    <img alt="Rote" src="https://img.shields.io/badge/Rote-Ready-yellow"/>
+    <img alt="Status" src="https://img.shields.io/badge/Status-Experimental-orange"/>
+</p>
 
-It is a local-first Rote Play that acts as a "git diff for agent authority". It performs a read-only Agent Surface Census, building an Agent Permission Graph, calculating Blast Radius, detecting schema drift, and returning a Safe-To-Run decision without printing secrets or modifying the machine.
+---
 
-## Problem
+TRIPWIRE is a local-first security check for AI-agent authority. It answers one practical question before an agent run:
 
-Modern coding agents can reach local config files, MCP servers, CLIs, browser helpers, git history, and credential-bearing state. That surface changes quickly and is hard to inspect as a human. Tool poisoning or leaked credentials can have catastrophic effects.
+> What can this agent reach, and is that access safe to continue with?
 
-## What It Discovers
+The project ships as reusable Rote Plays for the Playoffs. The Plays inspect agent harnesses, MCP configuration, credential loci, listener exposure, git metadata, Play metadata, and execution traces. They report risk state and safe-to-run decisions without printing secret values or modifying the machine.
 
-TRIPWIRE provides:
+**Featured Example:** Run a full local agent surface scan safely using the packaged Rote Play: `rote play run plays/tripwire-agent-surface-census/main.ts scope=all apply=false demo=false`
 
-## Future Roadmap & Improvements
-- **Rote CLI Native Integration:** Upgrade standalone Python scripts to natively output `.rote` journey traces and schedule them using Rote cron once supported.
-- **Safe Credential Revocation Adapter:** Implement the adapter to safely rotate local keys when `TRIPWIRE` flags write-risks.
-- **CI/CD Pipeline Integration:** Integrated GitHub Actions workflow for automated test and XRAY validation on PRs.
-- **Expanded XRAY Heuristics:** Advanced regex detection for heavily obfuscated shell payloads and encodes.
+**Zero to Hero Tutorial:** See the detailed DAG documentation in `docs/dag.md` to understand how TRIPWIRE calculates your Blast Radius and Agent Permission Graph.
 
-- **Agent Permission Graph:** Reconstructs the chain from Agent -> Harness -> Tool (MCP) -> Resource -> Effect.
-- **MCP Schema Fingerprinting:** Analyzes connected MCP servers, issues a `tools/list` RPC, and cryptographically fingerprints the schema.
-- **Agent Surface Delta:** Maintains a local baseline (`.tripwire_baseline.json`) to show exactly what changed (e.g. `+ New MCP Server`, `~ Schema Drift`) since yesterday.
-- **Blast Radius & Safe-To-Run:** Calculates a deterministic risk score based on tool exposure, reachability, and credential presence, resulting in a firm `YES`, `NO`, or `CONDITIONAL` decision.
-- **Granular Probes:** 
-  - agent harness & OS/Git identity
-  - filesystem and network reachability
-  - credential loci (MCP config, `.env`, `.pem` files)
-  - GitHub CLI availability and SSH key age metadata
+## Quick Start
 
-It records expected absence as data. Missing CLIs, missing config, missing network, unreadable directories, and permission-limited listener inspection produce `missing`, `unknown`, `skipped`, or warnings.
+Run with the Rote CLI:
 
-## Security Guarantees
+```bash
+rote play run plays/tripwire-agent-surface-census/main.ts scope=all apply=false demo=false --output=human
+rote play run plays/tripwire-investigate/main.ts trace_file=/path/to/repo/tests/fixtures/play_test_suspicious.json --output=json
+```
 
-TRIPWIRE reports credential presence, not credential values.
+Or run the standalone Python orchestrator for local validation:
 
-It must never print:
+```bash
+# Human readable output
+python3 scripts/tripwire.py --scope all --apply false --format human run_all
 
-- API keys
-- access tokens
-- OAuth tokens
-- passwords
-- cookies
-- private keys
-- authentication headers
-- environment variable values
-- MCP secret values
-
-Secret-bearing fields are represented as `PRESENT`, `MISSING`, `PLACEHOLDER`, `UNKNOWN`, or `NEVER DISPLAYED`.
-
-The probe engine uses bounded paths. It does not recursively scan the whole filesystem. It does not upload credentials. It does not delete or modify local configuration.
-
-## Classification
-
-Every finding maps to:
-
-- `S0 CLEAN`: no meaningful issue detected
-- `S1 DRIFT`: configuration, stale state, or uncertainty without direct secret exposure or unguarded writes
-- `S2 SECRET RISK`: evidence that a credential/session artifact exists in a reachable or risky location
-- `S3 WRITE RISK`: evidence of potentially unguarded write capability or a read-only/write mismatch
-- `UNKNOWN`: insufficient evidence
-
-The overall severity is the highest known severity. `UNKNOWN` is not escalated to S2 or S3.
-
-## Finding Schema
-
-Each finding has stable fields:
-
-- `id`
-- `probe`
-- `surface`
-- `asset`
-- `status`
-- `severity`
-- `message`
-- `evidence`
-- `credential_state`
-- `write_capability`
-- `confidence`
-- `remediation`
-- `details`
-
-This keeps human, summary, and JSON output tied to the same underlying findings.
-
-## Parameters
-
-Rote parameters:
-
-- `scope=all|harness|mcp|plays|secrets`
-- `apply=false|true`
-- `format=human|json|summary`
-- `demo=false|true`
-
-Defaults:
-
-- `scope=all`
-- `apply=false`
-- `format=human`
-- `demo=false`
-
-`demo=true` uses deterministic fixtures under `tests/fixtures/demo` instead of the real local home/workspace. Normal runs ignore `tests/fixtures`.
-
-## Read/Write Behavior
-
-`apply=false` is the safe default.
-
-The DAG declares an optional `revoke_stale` stage, but this implementation keeps it disabled. It reports whether `apply=true` was requested and does not revoke credentials, delete files, or modify configuration.
-
-## DAG
-
-Layer 1 independent probes:
-
-- `harness_inventory`
-- `mcp_census`
-- `play_registry`
-- `secret_loci`
-- `token_ttl`
-- `listen_surface`
-- `price_tape`
-- `git_leak_probe`
-
-Layer 2 join:
-
-- `classify`
-
-Layer 3 verdict/write contract:
-
-- `verdict`
-- `revoke_stale` disabled
-
-See `docs/dag.md` for the inspectable DAG explanation and value edges.
+# Raw JSON output for automation pipelines
+python3 scripts/tripwire.py --scope all --apply false --format json run_all
+```
 
 ## Dependencies
 
@@ -167,25 +77,38 @@ If `rote` is not installed, inspect the frontmatter directly:
 python3 scripts/tripwire.py --format human doctor
 ```
 
-## Run With Rote
+## Playoffs-Ready Plays
+
+| Play | Purpose | Demo result |
+| --- | --- | --- |
+| `tripwire-agent-surface-census` | Runs a local read-only census of agent authority surfaces. | `TRIPWIRE S3 WRITE RISK findings=16` |
+| `tripwire-investigate` | Audits an AI-agent execution trace for risky behavior and policy outcome. | `TRIPWIRE: BLOCKED - Behavioral Risk: HIGH` |
+
+Both packaged Plays live under `plays/` and are the correct submission/demo targets:
+
+- `plays/tripwire-agent-surface-census/main.ts`
+- `plays/tripwire-investigate/main.ts`
+
+Do not use the repository-root `main.ts` as the Playoffs package. The released, reusable Play packages are the two directories above.
+
+## Quick Demo
+
+From WSL, after the Plays are installed into local Rote discovery:
 
 ```bash
-rote play run main.ts scope=all apply=false demo=false --output=human
-rote play run main.ts scope=all apply=false demo=false --output=json
-rote play run main.ts scope=all apply=false demo=true --output=human
+cd /tmp
+rote play search tripwire
+rote play run tripwire-agent-surface-census scope=all apply=false demo=true --output=summary
+rote play run tripwire-investigate trace_file=/path/to/repo/tests/fixtures/play_test_suspicious.json --output=summary
 ```
 
-## Run Without Rote
+Expected output:
 
-The standalone runner executes the same probe/join/verdict sequence for local validation:
-
-```bash
-python3 scripts/tripwire.py --scope all --apply false --format human run_all
-python3 scripts/tripwire.py --scope all --apply false --format json run_all
-python3 scripts/tripwire.py --scope all --apply false --format human --demo true run_all
+```text
+ok: found 2 plays
+TRIPWIRE S3 WRITE RISK findings=16
+TRIPWIRE: BLOCKED - Behavioral Risk: HIGH
 ```
-
-On Windows, if `python3` is not available but another Python executable is, use that executable for standalone validation. Keep `python3` in `main.ts` unless the target Rote environment requires a different command.
 
 ## Example Output
 
@@ -214,10 +137,58 @@ RAW FINDINGS
 
 The exact findings depend on the local machine.
 
-## Testing
+## Overview & Key Features
+
+TRIPWIRE provides a standard for interrogating what an agent on this machine can currently reach, and whether it was authorized. Users can interact with the environment during execution loops to determine if it is safe to proceed.
+
+In addition to detecting schema drift and exposed credentials, we provide tools for reconstructing the Agent Permission Graph (Agent -> Harness -> Tool -> Resource -> Effect). TRIPWIRE is isolated, secure, and reports credential *presence*, never the values themselves.
+
+Below is a list of core probes and calculations that TRIPWIRE performs:
+
+- **Agent Permission Graph:** Reconstructs the chain of agent authority.
+- **MCP Schema Fingerprinting:** Analyzes and fingerprints connected MCP servers.
+- **Agent Surface Delta:** Maintains a local baseline to show exactly what changed (`+ New MCP Server`, `~ Schema Drift`).
+- **Blast Radius & Safe-To-Run:** Calculates a deterministic risk score resulting in a firm `YES`, `NO`, or `CONDITIONAL` decision.
+
+## What TRIPWIRE Checks
+
+TRIPWIRE builds an evidence-backed view of local agent authority:
+
+- Agent harness inventory and runtime identity
+- MCP server configuration and tool schema fingerprints
+- Credential-shaped files and secret loci, reported by presence only
+- Network and listener exposure
+- Local Rote Play metadata and read/write declarations
+- Git history paths that may indicate credential leakage
+- Execution-trace behavior for credential, network, and write-risk patterns
+
+The output is deterministic and maps findings to:
+
+- `S0 CLEAN`: no meaningful issue detected
+- `S1 DRIFT`: configuration drift or uncertainty
+- `S2 SECRET RISK`: reachable credential/session artifact risk
+- `S3 WRITE RISK`: potentially unsafe write capability or read-only mismatch
+- `UNKNOWN`: insufficient evidence
+
+## Safety Contract
+
+TRIPWIRE is read-only by default.
+
+> ⚠️ **Security Guarantee:** TRIPWIRE must never print API keys, access tokens, OAuth tokens, passwords, cookies, private keys, authentication headers, or environment variable values. Secret-bearing fields are represented as `PRESENT`, `MISSING`, `PLACEHOLDER`, `UNKNOWN`, or `NEVER DISPLAYED`.
+
+## Verify Locally
+
+Run the Python test suite:
 
 ```bash
 python3 -m unittest discover -s tests
+```
+
+Current verified result:
+
+```text
+Ran 56 tests
+OK (skipped=1)
 ```
 
 The tests cover:
@@ -238,6 +209,85 @@ The tests cover:
 - end-to-end synthetic secret non-disclosure
 - deterministic demo fixture mode
 
+Run the Rote checks:
+
+```bash
+rote play lint ./plays/tripwire-agent-surface-census/main.ts
+rote play lint ./plays/tripwire-investigate/main.ts
+rote play list --json
+```
+
+Current verified status:
+
+```text
+tripwire-agent-surface-census: Released
+tripwire-investigate: Released
+```
+
+## Standalone Runner
+
+The same probe engine can be run without Rote for local validation:
+
+```bash
+python3 scripts/tripwire.py --scope all --apply false --format human run_all
+python3 scripts/tripwire.py --scope all --apply false --format json run_all
+python3 scripts/tripwire.py --scope all --apply false --format summary --demo true run_all
+```
+
+## Architecture
+
+### Component Overview
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                    TRIPWIRE Engine                      │
+│  ┌────────────────┐              ┌──────────────────┐   │
+│  │  Probes        │              │  BIE Evaluator   │   │
+│  │  (Layer 1)     │              │  (Layer 2 & 3)   │   │
+│  └────────┬───────┘              └────────┬─────────┘   │
+└───────────┼───────────────────────────────┼─────────────┘
+            │ Bounded Execution             │ Deterministic
+            │ (Read-only)                   │ Verdict
+┌───────────▼───────────────────────────────▼─────────────┐
+│                 Local Environment                       │
+│    (MCP Servers, Git, Harnesses, Environment Vars)      │
+└─────────────────────────────────────────────────────────┘
+```
+
+The Play DAG follows three layers:
+
+1. **Independent Probes:** `harness_inventory`, `mcp_census`, `play_registry`, `secret_loci`, etc. collect bounded local evidence.
+2. **Classification (Join & Classify):** Joins the probe outputs into normalized findings. Determines `S0 CLEAN`, `S1 DRIFT`, `S2 SECRET RISK`, or `S3 WRITE RISK`.
+3. **Verdict & Contract:** Returns the final risk level and emits the `SAFE TO RUN?` decision.
+
+## Future Roadmap & Improvements
+
+- **Rote CLI Native Integration:** Upgrade standalone Python scripts to natively output `.rote` journey traces.
+- **Safe Credential Revocation Adapter:** Implement adapter to safely rotate local keys when write-risks are flagged.
+- **CI/CD Pipeline Integration:** Automated test and XRAY validation on PRs via GitHub Actions.
+- **Expanded XRAY Heuristics:** Advanced regex detection for heavily obfuscated shell payloads.
+
+## Demo Recording Guide
+
+Use `docs/demo-recording-guide.md` for a step-by-step recording script. The recommended social/demo story is:
+
+1. Search for the Plays with `rote play search tripwire`.
+2. Run the agent surface census and show the `S3 WRITE RISK` result.
+3. Run the suspicious trace investigation and show the `BLOCKED` result.
+4. Explain that both Plays are reusable, inspectable, read-only by default, and ready to publish to Community.
+
+## Playoffs Submission
+
+Submission happens when Play asks where the verified method should live. Choose `Community`. A public canonical Play URI is the completed submission.
+
+Use the Play agent flow:
+
+```text
+$play explore publish my TRIPWIRE agent surface census Play as a reusable Community Play for checking local agent authority, MCP configuration, credential loci, listener exposure, Rote Play metadata, and producing a safe-to-run verdict. Use the existing project at ./ and the packaged Play at plays/tripwire-agent-surface-census/main.ts. Verify it with demo=true first, then save/publish it to Community.
+```
+
+After publishing, confirm that the public URI opens and runs through Rote.
+
 ## Limitations
 
 - The local build environment used for this submission did not have `rote` on PATH, so Rote CLI lint/run could not be executed here.
@@ -245,3 +295,12 @@ The tests cover:
 - `price_tape` is secondary. Network failure reports `pricing: UNKNOWN` and does not block the census.
 - `git_leak_probe` inspects local git history paths only. It does not download remote repository contents or print file contents.
 - `revoke_stale` is disabled until a safe local revocation adapter exists.
+
+## Project Status
+
+- Rote/Play preflight: ready
+- Rote authentication: verified
+- Packaged Play lint: passing
+- Local Play discovery: passing
+- Python tests: passing
+- Public Community publishing: pending user confirmation in Play
